@@ -866,7 +866,8 @@ local function openidc_authorization_response(opts, session)
     grant_type="authorization_code",
     code=args.code,
     redirect_uri=openidc_get_redirect_uri(opts),
-    state = session.data.state
+    state = session.data.state,
+    scope = opts.access_scope and opts.access_scope or opts.scope and opts.scope or "openid email profile"
   }
 
   ngx.log(ngx.DEBUG, "Authentication with OP done -> Calling OP Token Endpoint to obtain tokens")
@@ -1081,7 +1082,7 @@ local function openidc_access_token(opts, session, try_to_renew)
   local body = {
     grant_type="refresh_token",
     refresh_token=session.data.refresh_token,
-    scope=opts.scope and opts.scope or "openid email profile"
+    scope=opts.access_scope and opts.access_scope or opts.scope and opts.scope or "openid email profile"
   }
 
   local json
