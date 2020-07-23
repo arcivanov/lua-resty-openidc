@@ -1163,6 +1163,7 @@ local function openidc_authorization_response(opts, session)
   end
 
   if store_in_session(opts, 'access_token') then
+    log(DEBUG, "storing access token")
     openidc_set_access_token(opts, session, current_time, json)
   end
 
