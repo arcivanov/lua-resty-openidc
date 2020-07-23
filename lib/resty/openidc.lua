@@ -1052,6 +1052,22 @@ local function openidc_load_and_validate_jwt_id_token(opts, jwt_id_token, sessio
   return id_token
 end
 
+-- set access and refresh tokens in a unified manner
+local function openidc_set_access_token(opts, session, current_time, json)
+  session.data.access_token = json.access_token
+  session.data.access_token_expiration = current_time +
+      openidc_access_token_expires_in(opts, json.expires_in)
+  if json.refresh_token then
+    session.data.refresh_token = json.refresh_token
+  end
+
+  log(DEBUG,
+      "setting access_token: ", json.access_token,
+      " access_token expiration: ", session.data.access_token_expiration,
+      " updated refresh_token: ", json.refresh_token)
+
+end
+
 -- handle a "code" authorization response from the OP
 local function openidc_authorization_response(opts, session)
   local args = ngx.req.get_uri_args()
@@ -1147,12 +1163,7 @@ local function openidc_authorization_response(opts, session)
   end
 
   if store_in_session(opts, 'access_token') then
-    session.data.access_token = json.access_token
-    session.data.access_token_expiration = current_time
-        + openidc_access_token_expires_in(opts, json.expires_in)
-    if json.refresh_token ~= nil then
-      session.data.refresh_token = json.refresh_token
-    end
+    openidc_set_access_token(opts, session, current_time, json)
   end
 
   if opts.lifecycle and opts.lifecycle.on_authenticated then
@@ -1284,10 +1295,10 @@ local function openidc_access_token(opts, session, try_to_renew)
     return session.data.access_token, err
   end
   if not try_to_renew then
-    return nil, "token expired"
+    return nil, "access token expired and no renew requested"
   end
   if session.data.refresh_token == nil then
-    return nil, "token expired and no refresh token available"
+    return nil, "access token expired and no refresh token available"
   end
 
   log(DEBUG, "refreshing expired access_token: ", session.data.access_token, " with: ", session.data.refresh_token)
@@ -1314,17 +1325,12 @@ local function openidc_access_token(opts, session, try_to_renew)
   if json.id_token then
     id_token, err = openidc_load_and_validate_jwt_id_token(opts, json.id_token, session)
     if err then
-      log(ERROR, "invalid id token, discarding tokens returned while refreshing")
+      log(ERROR, "invalid id token, discarding tokens returned while refreshing access token")
       return nil, err
     end
   end
-  log(DEBUG, "access_token refreshed: ", json.access_token, " updated refresh_token: ", json.refresh_token)
 
-  session.data.access_token = json.access_token
-  session.data.access_token_expiration = current_time + openidc_access_token_expires_in(opts, json.expires_in)
-  if json.refresh_token then
-    session.data.refresh_token = json.refresh_token
-  end
+  openidc_set_access_token(opts, session, current_time, json)
 
   if json.id_token and
       (store_in_session(opts, 'enc_id_token') or store_in_session(opts, 'id_token')) then
