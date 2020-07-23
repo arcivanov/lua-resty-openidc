@@ -1126,7 +1126,11 @@ local function openidc_authorization_response(opts, session)
     return nil, err, session.data.original_url, session
   end
 
-  local id_token, err = openidc_load_and_validate_jwt_id_token(opts, json.id_token, session);
+  log(DEBUG,
+      "token endpoint returned", cjson.encode(json))
+
+  local id_token
+  id_token, err = openidc_load_and_validate_jwt_id_token(opts, json.id_token, session);
   if err then
     return nil, err, session.data.original_url, session
   end
@@ -1289,6 +1293,7 @@ local function openidc_access_token(opts, session, try_to_renew)
   local err
 
   if session.data.access_token == nil then
+    log(DEBUG, "no access token available")
     return nil, err
   end
   local current_time = ngx.time()
@@ -1384,8 +1389,6 @@ function openidc.authenticate(opts, target_url, unauth_action, session_opts)
 
   target_url = target_url or ngx.var.request_uri
 
-  local access_token
-
   -- see if this is a request to the redirect_uri i.e. an authorization response
   local path = openidc_get_path(target_url)
   if path == openidc_get_redirect_uri_path(opts) then
@@ -1413,6 +1416,7 @@ function openidc.authenticate(opts, target_url, unauth_action, session_opts)
     return nil, nil, target_url, session
   end
 
+  local access_token
   local token_expired = false
   local try_to_renew = opts.renew_access_token_on_expiry == nil or opts.renew_access_token_on_expiry
   local store_access_token = store_in_session(opts, "access_token")
